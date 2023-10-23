@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.lizhi</groupId>
-    <artifactId>LizhiGateWay</artifactId>
+    <artifactId>lizhi-gateway</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>LizhiGateWay</name>
     <description>LizhiGateWay</description>

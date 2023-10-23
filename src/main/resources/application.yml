@@ -1,0 +1,26 @@
+server:
+  port: 8090
+
+# 详细日志
+logging:
+  level:
+    org:
+      springframework:
+        cloud:
+          gateway: trace
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: api_route
+          uri: https://www.yucongming.com
+          predicates:
+            - Path=/api/dev/**
+# 消费者
+dubbo:
+  application:
+    name: API-consumer
+  registry:
+    address: nacos://localhost:8848?username=nacos&password=nacos
+  consumer:
+    timeout: 3000

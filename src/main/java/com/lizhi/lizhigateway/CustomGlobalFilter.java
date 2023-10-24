@@ -64,8 +64,9 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         String timestamp = headers.getFirst("timestamp");
         String body = headers.getFirst("body");
         String publicKey = headers.getFirst("PUBLIC_KEY");
-        // 需要得到这个 accessKey、sign
-        SignUtils.decryptContent(publicKey, userSign);
+        // 解密后的密钥
+        String userSecretKey = SignUtils.decryptContent(publicKey, userSign);
+
         return null;
     }
 

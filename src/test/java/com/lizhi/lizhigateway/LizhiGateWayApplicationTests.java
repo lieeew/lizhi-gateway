@@ -11,6 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
+import java.util.Base64;
 
 @SpringBootTest
 class LizhiGateWayApplicationTests {
@@ -29,10 +31,11 @@ class LizhiGateWayApplicationTests {
 
         // 私钥加密，公钥解密
         byte[] encrypt = rsa.encrypt(StrUtil.bytes("我是一段测试aaaa", CharsetUtil.CHARSET_UTF_8), KeyType.PrivateKey);
-        String encryptStr = new String(encrypt, CharsetUtil.ISO_8859_1);
+        // 将 byte 数组转为 Base64 字符串
+        String base64Data = Base64.getEncoder().encodeToString(encrypt);
 
         RSA rsa1 = new RSA(null, publicKeyBase64);
-        byte[] decrypt = rsa1.decrypt(encryptStr.getBytes(StandardCharsets.ISO_8859_1), KeyType.PublicKey);
+        byte[] decrypt = rsa1.decrypt(Base64.getDecoder().decode(base64Data), KeyType.PublicKey);
 
         // Junit单元测试
         String str = StrUtil.str(decrypt, CharsetUtil.CHARSET_UTF_8);

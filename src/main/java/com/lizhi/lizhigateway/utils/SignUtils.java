@@ -1,12 +1,14 @@
 package com.lizhi.lizhigateway.utils;
 
+import cn.hutool.core.util.CharsetUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.asymmetric.KeyType;
 import cn.hutool.crypto.asymmetric.RSA;
-import org.bouncycastle.crypto.util.PublicKeyFactory;
-import sun.security.provider.DSAPublicKey;
+import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.security.PublicKey;
+import java.util.Base64;
 
 /**
  * @author <a href="https://github.com/lieeew">leikooo</a>
@@ -21,8 +23,15 @@ public class SignUtils {
      * @return
      */
     public static String decryptContent(String publicKey, String encryptText) {
+        // 判断内容是否为 “”
+        if (StringUtils.isAnyEmpty(encryptText, publicKey)) {
+            return "";
+        }
+
         RSA rsa = new RSA(null, publicKey);
-        byte[] decrypt = rsa.decrypt(encryptText.getBytes(StandardCharsets.UTF_8), KeyType.PublicKey);
-        return Arrays.toString(decrypt);
+        // 将 Base64 字符串解码为 byte 数组
+        byte[] decrypt = rsa.decrypt(Base64.getDecoder().decode(encryptText), KeyType.PublicKey);
+        // 返回解密后的密钥
+        return StrUtil.str(decrypt, CharsetUtil.CHARSET_UTF_8);
     }
 }

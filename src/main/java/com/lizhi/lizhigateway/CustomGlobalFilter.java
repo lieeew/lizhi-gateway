@@ -1,7 +1,11 @@
 package com.lizhi.lizhigateway;
 
 import com.lizhi.lizhigateway.utils.SignUtils;
+import com.lizhicommen.entity.Users;
+import com.lizhicommen.service.InnerUserService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.reactivestreams.Publisher;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -18,6 +22,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import javax.jws.Oneway;
+import javax.xml.stream.FactoryConfigurationError;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,19 +39,37 @@ import java.util.List;
 @Component
 public class CustomGlobalFilter implements GlobalFilter, Ordered {
 
-    // @DubboReference
-    // private InnerUserService innerUserService;
-    //
-    // @DubboReference
-    // private InnerInterfaceInfoService innerInterfaceInfoService;
-    //
-    // @DubboReference
-    // private InnerUserInterfaceInfoService innerUserInterfaceInfoService;
+    @DubboReference
+    private InnerUserService innerUserService;
+
+    /**
+     * 5 分钟时间常量
+     */
+    private static final Long FIVE_MINUTES = 60 * 5L;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 1. 请求日志
+        // 请求日志
         ServerHttpRequest request = exchange.getRequest();
+        // 输出访问者的信息
+        logRequestInfo(request);
+        ServerHttpResponse response = exchange.getResponse();
+        // 进行参数校验
+        HttpHeaders headers = request.getHeaders();
+        boolean isParameterInRule = isParameterInRule(headers);
+        if (!isParameterInRule) {
+            handleNoAuth(response);
+        }
+        // 执行成功之后，数据增加
+        return handleResponse(exchange, chain);
+    }
+
+    /**
+     * 输出日志信息
+     *
+     * @param request
+     */
+    private void logRequestInfo(ServerHttpRequest request) {
         String path = "INTERFACE_HOST" + request.getPath().value();
         String method = request.getMethod().toString();
         log.info("请求唯一标识：" + request.getId());
@@ -54,20 +79,40 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         String sourceAddress = request.getLocalAddress().getHostString();
         log.info("请求来源地址：" + sourceAddress);
         log.info("请求来源地址：" + request.getRemoteAddress());
-        ServerHttpResponse response = exchange.getResponse();
-        // 3. 用户鉴权（判断 ak、sk 是否合法）
-        HttpHeaders headers = request.getHeaders();
-        // 获取我们在 lizhi-client-sdk 放在请求头的数据
+    }
+
+
+    /**
+     * 判断一些校验条件时候合理
+     *
+     * @param headers 请求头
+     * @return
+     */
+    public boolean isParameterInRule(HttpHeaders headers) {
         String userAccessKey = headers.getFirst("userAccessKey");
         String userSign = headers.getFirst("userSign");
         String nonce = headers.getFirst("nonce");
         String timestamp = headers.getFirst("timestamp");
         String body = headers.getFirst("body");
         String publicKey = headers.getFirst("PUBLIC_KEY");
-        // 解密后的密钥
         String userSecretKey = SignUtils.decryptContent(publicKey, userSign);
-
-        return null;
+        Users invokeUser = innerUserService.getInvokeUser(userAccessKey);
+        if (StringUtils.isAnyEmpty(userAccessKey, userSign, nonce, timestamp, body, publicKey, userAccessKey, userSecretKey)) {
+            log.error("The parameter does not meet the requirements, it my be cause by 「userAccessKey, userSign, nonce, timestamp, body, publicKey, userAccessKey, userSecretKey」");
+            return false;
+        }
+        if (invokeUser == null || !userSecretKey.equals(invokeUser.getSecretKey())) {
+            return false;
+        }
+        if (Long.parseLong(nonce) > 10000L) {
+            return false;
+        }
+        // 时间和当前时间不能超过 5 分钟
+        long currentTime = System.currentTimeMillis() / 1000;
+        if ((currentTime - Long.parseLong(timestamp)) >= FIVE_MINUTES) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -77,7 +122,7 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
      * @param chain
      * @return
      */
-    public Mono<Void> handleResponse(ServerWebExchange exchange, GatewayFilterChain chain, long interfaceInfoId, long userId) {
+    public Mono<Void> handleResponse(ServerWebExchange exchange, GatewayFilterChain chain) {
         try {
             ServerHttpResponse originalResponse = exchange.getResponse();
             // 缓存数据的工厂
